@@ -1,6 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  output: "standalone", // <--- This tells Next.js to build for Docker
+
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "**.amazon.com" },
