@@ -1,0 +1,32 @@
+price.vectobody.com {
+    reverse_proxy app:3000
+
+    # Security headers
+    header {
+        X-Frame-Options "DENY"
+        X-Content-Type-Options "nosniff"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        X-XSS-Protection "1; mode=block"
+        -Server
+    }
+
+    # Enable HTTPS automatically (Let's Encrypt)
+    tls {
+        protocols tls1.2 tls1.3
+    }
+
+    # Logging
+    log {
+        output file /data/access.log
+        format json
+    }
+
+    # Rate limiting (prevent abuse of scrape/auth endpoints)
+    rate_limit {
+        zone dynamic {
+            key {remote_host}
+            events 100
+            window 1m
+        }
+    }
+}

@@ -32,8 +32,9 @@ export async function POST(request: NextRequest) {
     .then((rows) => rows[0]);
 
   if (existing) {
+    // Return a generic message to prevent email enumeration
     return NextResponse.json(
-      { error: "An account with this email already exists" },
+      { error: "If this email is available, a confirmation has been sent" },
       { status: 409 },
     );
   }

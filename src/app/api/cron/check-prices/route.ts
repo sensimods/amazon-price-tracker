@@ -4,27 +4,33 @@ import { products } from "@/lib/db/schema/products";
 import { prices } from "@/lib/db/schema/prices";
 import { eq } from "drizzle-orm";
 import { scrapeProduct } from "@/lib/scraping";
+import crypto from "crypto";
 
 /**
- * Simple cron endpoint to check all active product prices.
- * Can be called by:
- *   - Vercel Cron Jobs (config in vercel.json)
- *   - External cron service
- *   - curl for manual testing
- *
- * Protected by CRON_SECRET for non-Vercel environments.
+ * Cron endpoint to check all active product prices.
+ * Protected by CRON_SECRET via Authorization header only.
+ * Uses timing-safe comparison to prevent timing attacks.
  */
 
+function timingSafeEqual(a: string, b: string): boolean {
+  const maxLen = Math.max(a.length, b.length);
+  const bufA = Buffer.from(a.padEnd(maxLen, "\0"));
+  const bufB = Buffer.from(b.padEnd(maxLen, "\0"));
+  try {
+    return crypto.timingSafeEqual(bufA, bufB);
+  } catch {
+    return false;
+  }
+}
+
 export async function GET(request: NextRequest) {
-  // Verify cron secret in non-Vercel environments
-  const authHeader = request.headers.get("authorization");
   const cronSecret = process.env.CRON_SECRET;
 
   if (cronSecret) {
+    const authHeader = request.headers.get("authorization") ?? "";
     const expected = `Bearer ${cronSecret}`;
-    const querySecret = request.nextUrl.searchParams.get("secret");
 
-    if (authHeader !== expected && querySecret !== cronSecret) {
+    if (!timingSafeEqual(authHeader, expected)) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
   }

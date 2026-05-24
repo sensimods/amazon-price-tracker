@@ -4,13 +4,19 @@ import { getPriceId } from "@/lib/billing/plans";
 import { db } from "@/lib/db";
 import { subscriptions } from "@/lib/db/schema/subscriptions";
 import { eq } from "drizzle-orm";
+import { z } from "zod";
+
+const checkoutSchema = z.object({
+  plan: z.enum(["personal", "pro"]),
+});
 
 async function getCheckoutData(plan: string, session: { user: { id: string; email: string } }) {
-  if (!plan || !["personal", "pro"].includes(plan)) {
-    return { error: "Invalid plan", status: 400 };
+  const parsed = checkoutSchema.safeParse({ plan });
+  if (!parsed.success) {
+    return { error: "Invalid plan. Choose 'personal' or 'pro'.", status: 400 };
   }
 
-  const priceId = getPriceId(plan);
+  const priceId = getPriceId(parsed.data.plan);
   if (!priceId) {
     return { error: "Pricing not configured. Contact support.", status: 501 };
   }

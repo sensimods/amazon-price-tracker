@@ -4,6 +4,45 @@ import { subscriptions } from "@/lib/db/schema/subscriptions";
 import { users } from "@/lib/db/schema/users";
 import { eq } from "drizzle-orm";
 import { PLANS } from "@/lib/billing/plans";
+import crypto from "crypto";
+
+/**
+ * Verify Paddle webhook signature using timing-safe comparison.
+ * Paddle signs webhooks with a secret key using HMAC-SHA256.
+ * The signature header format: ts=timestamp;h1=signature
+ */
+function verifyWebhookSignature(
+  body: string,
+  signatureHeader: string,
+  secret: string,
+): boolean {
+  try {
+    // Parse the signature header: ts=1234567890;h1=abc123...
+    const parts = signatureHeader.split(";");
+    const timestamp = parts.find((p) => p.startsWith("ts="))?.slice(3) ?? "";
+    const signature = parts.find((p) => p.startsWith("h1="))?.slice(3) ?? "";
+
+    if (!timestamp || !signature) return false;
+
+    // Recreate the signed payload: timestamp.body
+    const signedPayload = `${timestamp}.${body}`;
+
+    // Compute expected signature using HMAC-SHA256
+    const expected = crypto
+      .createHmac("sha256", secret)
+      .update(signedPayload)
+      .digest("hex");
+
+    // Timing-safe comparison
+    const maxLength = Math.max(signature.length, expected.length);
+    const sigBuf = Buffer.from(signature.padEnd(maxLength, "\0"));
+    const expBuf = Buffer.from(expected.padEnd(maxLength, "\0"));
+
+    return crypto.timingSafeEqual(sigBuf, expBuf);
+  } catch {
+    return false;
+  }
+}
 
 interface PaddleWebhookPayload {
   event_type: string;
@@ -79,17 +118,24 @@ function getPlanLimits(plan: string) {
  * Configure this URL in the Paddle dashboard as a webhook endpoint.
  */
 export async function POST(request: NextRequest) {
+  const rawBody = await request.text();
+  const signatureHeader = request.headers.get("paddle-signature") ?? "";
   const webhookSecret = process.env.PADDLE_WEBHOOK_SECRET;
 
-  // In production, verify the webhook signature
-  // For now, basic validation using a shared secret header
+  // Verify webhook signature to prevent unauthorized access
   if (webhookSecret) {
-    const signature = request.headers.get("paddle-signature") ?? "";
-    // TODO: Implement proper signature verification using @paddle/paddle-node-sdk
-    // const webhook = paddle.webhooks.unmarshal(JSON.stringify(body), signature);
+    const isValid = verifyWebhookSignature(rawBody, signatureHeader, webhookSecret);
+    if (!isValid) {
+      return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
+    }
   }
 
-  const body = (await request.json()) as PaddleWebhookPayload;
+  let body: PaddleWebhookPayload;
+  try {
+    body = JSON.parse(rawBody) as PaddleWebhookPayload;
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+  }
   const { event_type, data } = body;
 
   switch (event_type) {

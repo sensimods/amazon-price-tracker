@@ -4,9 +4,36 @@ const nextConfig: NextConfig = {
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "**.amazon.com" },
-      { protocol: "https", hostname: "**.bestbuy.com" },
-      { protocol: "https", hostname: "images.unsplash.com" },
+      { protocol: "https", hostname: "**.media-amazon.com" },
+      { protocol: "https", hostname: "i.ebayimg.com" },
     ],
+  },
+
+  // Security headers
+  async headers() {
+    return [
+      {
+        source: "/(.*)",
+        headers: [
+          {
+            key: "X-Frame-Options",
+            value: "DENY",
+          },
+          {
+            key: "X-Content-Type-Options",
+            value: "nosniff",
+          },
+          {
+            key: "Referrer-Policy",
+            value: "strict-origin-when-cross-origin",
+          },
+          {
+            key: "X-XSS-Protection",
+            value: "1; mode=block",
+          },
+        ],
+      },
+    ];
   },
 };
 

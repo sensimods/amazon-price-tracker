@@ -6,6 +6,11 @@ import { db } from "@/lib/db";
 import { prices } from "@/lib/db/schema/prices";
 import { products } from "@/lib/db/schema/products";
 import { eq } from "drizzle-orm";
+import { z } from "zod";
+
+const scrapeRequestSchema = z.object({
+  productId: z.string().uuid("Invalid product ID"),
+});
 
 export async function POST(request: NextRequest) {
   const session = await auth();
@@ -14,14 +19,16 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json();
-  const { productId } = body;
+  const parsed = scrapeRequestSchema.safeParse(body);
 
-  if (!productId) {
+  if (!parsed.success) {
     return NextResponse.json(
-      { error: "productId is required" },
+      { error: "Invalid request", details: parsed.error.flatten() },
       { status: 400 },
     );
   }
+
+  const { productId } = parsed.data;
 
   // Verify the product belongs to the current user
   const product = await getProductById(productId, session.user.id);
