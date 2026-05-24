@@ -4,8 +4,15 @@ const nextConfig: NextConfig = {
   // Standalone output for Docker deployment
   output: "standalone",
 
+  // puppeteer-extra plugins use dynamic require() calls that webpack can't bundle.
+  // These only run in Node.js API routes, so externalize them.
+  serverExternalPackages: [
+    "puppeteer-extra-plugin-stealth",
+    "puppeteer-extra-plugin",
+    "playwright-extra",
+  ],
+
   // Exclude Playwright browser downloads from the standalone trace
-  // We use the system-installed Chromium in production, not Playwright's bundled one
   outputFileTracingExcludes: {
     "**/*": [
       "**/.cache/ms-playwright*/**",

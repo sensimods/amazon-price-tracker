@@ -32,14 +32,14 @@ RUN apk add --no-cache \
     # Network security
     ca-certificates \
     nss \
-    # Font rendering (needed for page.textContent(), screenshot, etc.)
+    # Font rendering
     freetype \
     harfbuzz \
     ttf-freefont \
     fontconfig \
     # C++ standard library (Chromium is a C++ app)
     libstdc++ \
-    # X11 libraries (needed even in headless mode for GPU-less rendering)
+    # X11 libraries (needed even in headless mode)
     libx11 \
     libxcb \
     libxcomposite \
@@ -54,8 +54,10 @@ RUN apk add --no-cache \
     expat \
     # Wayland support
     wayland \
-    # Misc system utilities
+    # Misc
     dumb-init \
+    # Required by puppeteer-extra-plugin-stealth at runtime
+    gcompat \
     && rm -rf /var/cache/apk/*
 
 # Set Playwright browser path — browser.ts uses this explicitly

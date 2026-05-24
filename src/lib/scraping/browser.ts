@@ -1,18 +1,21 @@
-import { chromium, type Browser, type BrowserContext, type Page } from "playwright";
+import { chromium } from "playwright-extra";
+import StealthPlugin from "puppeteer-extra-plugin-stealth";
+import type { Browser, BrowserContext, Page } from "playwright";
 import type { PageContent } from "./types";
+
+// Apply stealth plugin to evade Amazon's bot detection
+chromium.use(StealthPlugin());
 
 let browser: Browser | null = null;
 let browserLaunching: Promise<Browser> | null = null;
 
 /**
  * Resolve the Chromium executable path.
- * Priority:
- *   1. PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH env var (set in Dockerfile)
- *   2. Playwright's default bundled browser (used in dev)
+ * In Docker (production), PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH points to
+ * the system-installed Chromium. In dev, Playwright's bundled browser is used.
  */
 function getExecutablePath(): string | undefined {
-  const envPath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH;
-  return envPath || undefined;
+  return process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH || undefined;
 }
 
 /**
@@ -20,17 +23,14 @@ function getExecutablePath(): string | undefined {
  * Uses a singleton pattern with deduplication of concurrent launch attempts.
  */
 export async function getBrowser(): Promise<Browser> {
-  // If already launching, wait for that attempt
   if (browserLaunching) {
     return browserLaunching;
   }
 
-  // If existing browser is connected, reuse it
   if (browser && browser.isConnected()) {
     return browser;
   }
 
-  // Launch a new browser instance
   browserLaunching = (async () => {
     try {
       const executablePath = getExecutablePath();
@@ -44,15 +44,8 @@ export async function getBrowser(): Promise<Browser> {
           "--disable-dev-shm-usage",
           "--disable-gpu",
           "--disable-software-rasterizer",
-          "--disable-extensions",
-          "--disable-background-networking",
-          "--disable-sync",
-          "--disable-translate",
-          "--disable-default-apps",
-          "--mute-audio",
           "--no-first-run",
-          "--hide-scrollbars",
-          "--single-process", // Required in Alpine environments without proper IPC
+          "--no-default-browser-check",
         ],
       });
 
@@ -81,7 +74,7 @@ export async function closeBrowser(): Promise<void> {
 
 /**
  * Fetch the full HTML content of a URL using headless Chromium.
- * Each call creates a fresh context (isolated cookies/storage).
+ * Uses stealth techniques to avoid bot detection (especially for Amazon).
  */
 export async function fetchWithBrowser(url: string): Promise<PageContent> {
   const b = await getBrowser();
@@ -95,35 +88,35 @@ export async function fetchWithBrowser(url: string): Promise<PageContent> {
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
       viewport: { width: 1920, height: 1080 },
       locale: "en-US",
-      // Block unnecessary resources to speed up page loads
-      extraHTTPHeaders: {
-        Accept:
-          "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "Accept-Language": "en-US,en;q=0.5",
-      },
     });
 
     page = await context.newPage();
 
+    // Use domcontentloaded instead of networkidle — Amazon pages have
+    // long-running analytics connections that prevent networkidle from firing
     const response = await page.goto(url, {
-      waitUntil: "networkidle",
+      waitUntil: "domcontentloaded",
       timeout: 30000,
     });
 
     const status = response?.status() ?? 500;
 
-    // Short pause for dynamic content to finish rendering
-    await page.waitForTimeout(2000);
+    // Wait for the page to finish rendering dynamic content
+    await page.waitForTimeout(3000);
+
+    // Check if we hit a bot-detection page
+    const bodyText = await page.evaluate(() => document.body.innerText.substring(0, 200));
+    if (bodyText.includes("Click the button below to continue shopping")) {
+      throw new Error("Amazon bot detection triggered — unable to scrape");
+    }
 
     const html = await page.content();
 
     return { html, url, status };
   } catch (error) {
-    // Wrap the error with context for debugging
     const message = error instanceof Error ? error.message : String(error);
     throw new Error(`Browser fetch failed for ${url}: ${message}`);
   } finally {
-    // Always clean up context and page to prevent memory leaks
     if (page) {
       try {
         await page.close();
