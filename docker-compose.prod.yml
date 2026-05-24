@@ -80,6 +80,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      target: builder
     container_name: price-tracker-migrate
     command: sh -c "pnpm db:migrate"
     environment:
