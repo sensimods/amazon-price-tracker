@@ -1,0 +1,10 @@
+node_modules/
+.next/
+*.local
+.env
+.env.local
+.env.production
+drizzle/
+playwright-report/
+test-results/
+market-research-pricing.md
