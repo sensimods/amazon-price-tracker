@@ -74,5 +74,14 @@
     "tailwindcss": "^4.1.4",
     "typescript": "^5.8.3",
     "vitest": "^4.1.7"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "msw",
+      "protobufjs",
+      "sharp",
+      "unrs-resolver"
+    ]
   }
 }
