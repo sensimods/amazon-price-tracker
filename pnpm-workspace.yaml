@@ -1,6 +1,15 @@
+# This tells the modern PNPM inside Docker that these packages are safe to build
 allowBuilds:
   esbuild: true
-  msw: set this to true or false
-  protobufjs: set this to true or false
+  msw: true
+  protobufjs: true
   sharp: true
   unrs-resolver: true
+
+# Included as a fallback just in case it pulls a late v10 version instead
+onlyBuiltDependencies:
+  - esbuild
+  - msw
+  - protobufjs
+  - sharp
+  - unrs-resolver
