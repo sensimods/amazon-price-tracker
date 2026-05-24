@@ -1,7 +1,18 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  output: "standalone", // <--- This tells Next.js to build for Docker
+  // Standalone output for Docker deployment
+  output: "standalone",
+
+  // Exclude Playwright browser downloads from the standalone trace
+  // We use the system-installed Chromium in production, not Playwright's bundled one
+  outputFileTracingExcludes: {
+    "**/*": [
+      "**/.cache/ms-playwright*/**",
+      "**/playwright-core/**",
+      "**/node_modules/playwright-core/.local-browsers/**",
+    ],
+  },
 
   images: {
     remotePatterns: [
